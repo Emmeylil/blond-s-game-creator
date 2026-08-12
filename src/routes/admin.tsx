@@ -27,16 +27,14 @@ export const Route = createFileRoute("/admin")({
 });
 
 const COLOR_PRESETS = [
-  "var(--wheel-1)",
-  "var(--wheel-2)",
-  "var(--wheel-3)",
-  "var(--wheel-4)",
-  "#f59e0b",
-  "#10b981",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#ef4444",
+  "#F68B1E", // Brand Orange
+  "#7F4CEF", // Block Purple
+  "#3B82F6", // Block Blue
+  "#AC80F7", // Iris Light Purple
+  "#8B5CF6", // Iris Aurora
+  "#F59E0B", // Amber Aurora
+  "#D8B4FE", // Soft Ice Purple
+  "#DDEDFF", // Light Blue
 ];
 
 function AdminPage() {

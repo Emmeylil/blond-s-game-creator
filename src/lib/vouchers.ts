@@ -9,10 +9,10 @@ export type VoucherItem = {
 };
 
 export const DEFAULT_VOUCHERS: VoucherItem[] = [
-  { id: "1", label: "Try Again", code: "", amount: 0, quantity: 100, color: "var(--wheel-1)", win: false },
-  { id: "2", label: "₦1,000 OFF", code: "BLOND1K", amount: 1000, quantity: 50, color: "var(--wheel-2)", win: true },
-  { id: "3", label: "₦2,000 OFF", code: "BLOND2K", amount: 2000, quantity: 20, color: "var(--wheel-3)", win: true },
-  { id: "4", label: "₦3,000 OFF", code: "RJA26", amount: 3000, quantity: 10, color: "var(--wheel-4)", win: true },
+  { id: "1", label: "Try Again", code: "", amount: 0, quantity: 100, color: "#7F4CEF", win: false },
+  { id: "2", label: "₦1,000 OFF", code: "BLOND1K", amount: 1000, quantity: 50, color: "#F68B1E", win: true },
+  { id: "3", label: "₦2,000 OFF", code: "BLOND2K", amount: 2000, quantity: 20, color: "#3B82F6", win: true },
+  { id: "4", label: "₦3,000 OFF", code: "RJA26", amount: 3000, quantity: 10, color: "#AC80F7", win: true },
 ];
 
 const STORAGE_KEY = "spin_wheel_vouchers_v1";

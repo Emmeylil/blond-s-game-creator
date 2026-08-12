@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getVouchers,
   saveVouchers,
+  resetDeviceSpinCount,
   DEFAULT_VOUCHERS,
   type VoucherItem,
 } from "@/lib/vouchers";
@@ -264,6 +265,15 @@ function AdminPage() {
             >
               <span>🎮</span> View Wheel
             </Link>
+            <button
+              onClick={() => {
+                resetDeviceSpinCount();
+                alert("✓ Device spin counter has been reset to 0!");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-xs font-semibold text-purple-300 transition-all hover:bg-purple-500/20"
+            >
+              <span>🔄</span> Reset Device Spins
+            </button>
             <button
               onClick={() => setChangePassOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-400 transition-all hover:bg-amber-500/20"

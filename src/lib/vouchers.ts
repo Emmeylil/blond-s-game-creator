@@ -16,6 +16,37 @@ export const DEFAULT_VOUCHERS: VoucherItem[] = [
 ];
 
 const STORAGE_KEY = "spin_wheel_vouchers_v1";
+const DEVICE_SPINS_KEY = "spin_wheel_device_spins_count_v1";
+export const MAX_SPINS_PER_DEVICE = 5;
+
+export function getDeviceSpinCount(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const val = localStorage.getItem(DEVICE_SPINS_KEY);
+    return val ? Math.max(0, parseInt(val, 10) || 0) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export function incrementDeviceSpinCount(): number {
+  if (typeof window === "undefined") return 0;
+  const current = getDeviceSpinCount();
+  const next = current + 1;
+  try {
+    localStorage.setItem(DEVICE_SPINS_KEY, String(next));
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
+  return next;
+}
+
+export function resetDeviceSpinCount(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEVICE_SPINS_KEY, "0");
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
+}
 
 export function getVouchers(): VoucherItem[] {
   if (typeof window === "undefined") return DEFAULT_VOUCHERS;
@@ -43,13 +74,25 @@ export function saveVouchers(vouchers: VoucherItem[]): void {
   }
 }
 
-export function pickWeightedVoucherIndex(vouchers: VoucherItem[]): number {
+export function pickWeightedVoucherIndex(
+  vouchers: VoucherItem[],
+  currentSpinCount: number = 0
+): number {
+  const tryAgainIdx = vouchers.findIndex((v) => !v.win);
+  const fallbackTryAgain = tryAgainIdx >= 0 ? tryAgainIdx : 0;
+
+  // RULE: First spin on a device should mostly (90% chance) land on "Try Again"
+  if (currentSpinCount === 0) {
+    if (Math.random() < 0.90) {
+      return fallbackTryAgain;
+    }
+  }
+
   const weights = vouchers.map((v) => (v.quantity > 0 ? v.quantity : v.win ? 0 : 1));
   const totalWeight = weights.reduce((a, b) => a + b, 0);
 
   if (totalWeight <= 0) {
-    const tryAgainIdx = vouchers.findIndex((v) => !v.win);
-    return tryAgainIdx >= 0 ? tryAgainIdx : 0;
+    return fallbackTryAgain;
   }
 
   let random = Math.random() * totalWeight;
@@ -59,7 +102,7 @@ export function pickWeightedVoucherIndex(vouchers: VoucherItem[]): number {
     }
     random -= weights[i];
   }
-  return 0;
+  return fallbackTryAgain;
 }
 
 export function claimVoucher(id: string): void {

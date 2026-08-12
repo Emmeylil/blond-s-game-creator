@@ -3,6 +3,9 @@ import {
   getVouchers,
   pickWeightedVoucherIndex,
   claimVoucher,
+  getDeviceSpinCount,
+  incrementDeviceSpinCount,
+  MAX_SPINS_PER_DEVICE,
   type VoucherItem,
 } from "@/lib/vouchers";
 import { WinModal } from "./WinModal";
@@ -23,6 +26,7 @@ function wedgePath(index: number, total: number) {
 
 export function SpinWheel({ onClose }: { onClose: () => void }) {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+  const [deviceSpinCount, setDeviceSpinCount] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<VoucherItem | null>(null);
@@ -30,22 +34,32 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   const spins = useRef(0);
 
   useEffect(() => {
-    const load = () => setVouchers(getVouchers());
+    const load = () => {
+      setVouchers(getVouchers());
+      setDeviceSpinCount(getDeviceSpinCount());
+    };
     load();
     window.addEventListener("vouchers_updated", load);
-    return () => window.removeEventListener("vouchers_updated", load);
+    window.addEventListener("spin_count_updated", load);
+    return () => {
+      window.removeEventListener("vouchers_updated", load);
+      window.removeEventListener("spin_count_updated", load);
+    };
   }, []);
 
   const currentVouchers = vouchers.length > 0 ? vouchers : getVouchers();
   const totalSegments = currentVouchers.length;
   const segAngle = 360 / Math.max(1, totalSegments);
+  const spinsLeft = Math.max(0, MAX_SPINS_PER_DEVICE - deviceSpinCount);
+  const isLimitReached = spinsLeft <= 0;
 
   const spin = () => {
-    if (spinning || totalSegments === 0) return;
+    if (spinning || totalSegments === 0 || isLimitReached) return;
     setSpinning(true);
     setResult(null);
 
-    const pick = pickWeightedVoucherIndex(currentVouchers);
+    // Pick segment taking into account first-spin rule & weighted stock
+    const pick = pickWeightedVoucherIndex(currentVouchers, deviceSpinCount);
     spins.current += 1;
 
     // Pointer sits at top (0deg); center of picked wedge must land there
@@ -57,6 +71,10 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       setSpinning(false);
       const landed = currentVouchers[pick];
       setResult(landed);
+
+      // Increment spin count for this device
+      const newSpinCount = incrementDeviceSpinCount();
+      setDeviceSpinCount(newSpinCount);
 
       if (landed && landed.win) {
         claimVoucher(landed.id);
@@ -83,13 +101,22 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
           Exciting Prizes Awaits You!
         </p>
 
-        <div className="mt-8 flex justify-center">
+        {/* Spin Count Badge */}
+        <div className="mt-3 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
+            <span>🎯</span> Spins Remaining: {spinsLeft} / {MAX_SPINS_PER_DEVICE}
+          </span>
+        </div>
+
+        <div className="mt-6 flex justify-center">
           <div className="relative h-72 w-72">
             <div className="absolute left-1/2 top-0 z-10 h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[16px] border-x-transparent border-t-foreground" />
             <svg
               viewBox="0 0 200 200"
               onClick={spin}
-              className="h-full w-full cursor-pointer rounded-full shadow-[var(--shadow-wheel)] ring-4 ring-border"
+              className={`h-full w-full rounded-full shadow-[var(--shadow-wheel)] ring-4 ring-border ${
+                isLimitReached || spinning ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+              }`}
               style={{
                 transform: `rotate(${rotation}deg)`,
                 transition: "transform 4s cubic-bezier(0.15, 0.9, 0.2, 1)",
@@ -120,23 +147,25 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <p className="mt-6 min-h-6 text-center text-sm text-muted-foreground">
+        <p className="mt-5 min-h-6 text-center text-sm text-muted-foreground">
           {spinning
             ? "Spinning..."
-            : result
-              ? result.win
-                ? `🎉 You won ${result.label}!`
-                : "😅 Try Again!"
-              : "Click the wheel or SPIN to start"}
+            : isLimitReached
+              ? "⚠️ You have used all 5 spins allowed for this device."
+              : result
+                ? result.win
+                  ? `🎉 You won ${result.label}!`
+                  : "😅 Try Again!"
+                : "Click the wheel or SPIN to start"}
         </p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           <button
             onClick={spin}
-            disabled={spinning}
-            className="rounded-full bg-[image:var(--gradient-spin)] px-10 py-3 text-sm font-bold uppercase tracking-wide text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+            disabled={spinning || isLimitReached}
+            className="rounded-full bg-[image:var(--gradient-spin)] px-10 py-3 text-sm font-bold uppercase tracking-wide text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer disabled:cursor-not-allowed"
           >
-            {spinning ? "..." : "Spin"}
+            {spinning ? "..." : isLimitReached ? "Limit Reached" : "Spin"}
           </button>
         </div>
       </div>

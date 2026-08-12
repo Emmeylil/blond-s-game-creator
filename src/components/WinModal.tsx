@@ -68,12 +68,15 @@ export function WinModal({ voucher, onClose }: WinModalProps) {
 
         {/* Action Button */}
         <div className="mt-8">
-          <button
+          <a
+            href="https://www.jumia.com.ng/"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={onClose}
-            className="w-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-8 py-3.5 text-base font-bold text-white shadow-lg shadow-orange-500/30 transition-all hover:brightness-110 hover:scale-[1.02] active:scale-95"
+            className="block w-full text-center rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-8 py-3.5 text-base font-bold text-white shadow-lg shadow-orange-500/30 transition-all hover:brightness-110 hover:scale-[1.02] active:scale-95"
           >
             Continue Shopping
-          </button>
+          </a>
         </div>
       </div>
     </div>

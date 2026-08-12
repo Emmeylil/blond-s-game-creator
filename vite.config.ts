@@ -17,8 +17,6 @@ export default defineConfig({
     }),
     tailwindcss(),
     react(),
-    nitro({
-      preset: "vercel",
-    }),
+    nitro(),
   ],
 });

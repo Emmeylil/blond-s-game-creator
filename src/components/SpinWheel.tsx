@@ -87,7 +87,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
                 fontSize="10"
                 fontWeight="700"
                 textAnchor="middle"
-                transform={`rotate(${i * SEG + SEG / 2} 100 100) translate(0 -60) rotate(90)`}
+                transform={`rotate(${i * SEG + SEG / 2} 100 100) translate(0 -60) rotate(90 100 100)`}
               >
                 {s.label}
               </text>

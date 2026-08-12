@@ -6,11 +6,20 @@ import {
   DEFAULT_VOUCHERS,
   type VoucherItem,
 } from "@/lib/vouchers";
+import {
+  isAdminAuthenticated,
+  loginAdmin,
+  logoutAdmin,
+  getAdminPassword,
+  setAdminPassword,
+  DEFAULT_USERNAME,
+  DEFAULT_PASSWORD,
+} from "@/lib/adminAuth";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin — Voucher & Prize Management" },
+      { title: "Admin Portal — Voucher Management" },
       { name: "description", content: "Manage vouchers, amounts, codes, and stock quantities for the prize wheel." },
     ],
   }),
@@ -31,12 +40,53 @@ const COLOR_PRESETS = [
 ];
 
 function AdminPage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [usernameInput, setUsernameInput] = useState(DEFAULT_USERNAME);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [savedNotice, setSavedNotice] = useState(false);
 
+  const [changePassOpen, setChangePassOpen] = useState(false);
+  const [newPassInput, setNewPassInput] = useState("");
+  const [passNotice, setPassNotice] = useState<string | null>(null);
+
   useEffect(() => {
+    setAuthenticated(isAdminAuthenticated());
     setVouchers(getVouchers());
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginAdmin(usernameInput, passwordInput)) {
+      setAuthenticated(true);
+      setLoginError(null);
+    } else {
+      setLoginError("Invalid username or password. Please try again.");
+    }
+  };
+
+  const handleLogout = () => {
+    logoutAdmin();
+    setAuthenticated(false);
+    setPasswordInput("");
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassInput.trim()) {
+      setPassNotice("Password cannot be empty.");
+      return;
+    }
+    setAdminPassword(newPassInput.trim());
+    setPassNotice("✓ Password updated successfully!");
+    setTimeout(() => {
+      setChangePassOpen(false);
+      setPassNotice(null);
+      setNewPassInput("");
+    }, 2000);
+  };
 
   const handleUpdateField = <K extends keyof VoucherItem>(
     id: string,
@@ -100,10 +150,84 @@ function AdminPage() {
     }
   };
 
+  // 1. UNAUTHENTICATED LOGIN SCREEN
+  if (!authenticated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#0f0e17] px-4 py-12 text-white">
+        <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#181628] p-8 shadow-2xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-3xl">
+            🔒
+          </div>
+          <h1 className="text-center text-2xl font-extrabold tracking-tight text-white">
+            Admin Portal
+          </h1>
+          <p className="mt-1 text-center text-xs font-medium text-gray-400">
+            Please enter admin credentials to access voucher settings.
+          </p>
+
+          {loginError ? (
+            <div className="mt-4 rounded-xl bg-rose-500/20 border border-rose-500/40 p-3 text-center text-xs font-semibold text-rose-300">
+              {loginError}
+            </div>
+          ) : null}
+
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                Username
+              </label>
+              <input
+                type="text"
+                required
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none"
+                placeholder="admin"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] active:scale-95"
+            >
+              Log In to Admin
+            </button>
+          </form>
+
+          <div className="mt-6 border-t border-white/10 pt-4 text-center">
+            <p className="text-[11px] text-gray-400">
+              Default Credentials: <span className="font-mono text-amber-400">admin</span> / <span className="font-mono text-amber-400">{getAdminPassword()}</span>
+            </p>
+            <div className="mt-3">
+              <Link to="/" className="text-xs font-semibold text-gray-400 hover:text-white underline">
+                ← Back to Spin Wheel Game
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const totalStock = vouchers
     .filter((v) => v.win)
     .reduce((sum, v) => sum + (Number(v.quantity) || 0), 0);
 
+  // 2. AUTHENTICATED DASHBOARD
   return (
     <div className="min-h-screen bg-[#0f0e17] text-white p-4 sm:p-8">
       <div className="mx-auto max-w-5xl">
@@ -117,12 +241,26 @@ function AdminPage() {
               Manage discount vouchers, amounts, codes, and stock quantities to control wheel probability.
             </p>
           </div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/15"
-          >
-            <span>🎮</span> Test Spin Wheel
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-white transition-all hover:bg-white/15"
+            >
+              <span>🎮</span> View Wheel
+            </Link>
+            <button
+              onClick={() => setChangePassOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-400 transition-all hover:bg-amber-500/20"
+            >
+              <span>🔑</span> Change Password
+            </button>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-400 transition-all hover:bg-rose-500/20"
+            >
+              <span>🚪</span> Log Out
+            </button>
+          </div>
         </div>
 
         {/* Saved Toast Notice */}
@@ -286,6 +424,45 @@ function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {changePassOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-[#181628] p-6 text-center shadow-2xl">
+            <button
+              onClick={() => setChangePassOpen(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-white"
+            >
+              &times;
+            </button>
+            <h3 className="text-xl font-extrabold text-white">Change Admin Password</h3>
+            <p className="mt-1 text-xs text-gray-400">Enter a new password for your admin account.</p>
+
+            {passNotice ? (
+              <div className="mt-3 rounded-lg bg-emerald-500/20 p-2 text-xs font-semibold text-emerald-300">
+                {passNotice}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleChangePassword} className="mt-4 space-y-3">
+              <input
+                type="password"
+                required
+                value={newPassInput}
+                onChange={(e) => setNewPassInput(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none"
+                placeholder="New Password"
+              />
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg"
+              >
+                Update Password
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -8,12 +8,12 @@ import {
 } from "@/lib/vouchers";
 import {
   isAdminAuthenticated,
-  loginAdmin,
-  logoutAdmin,
+  loginWithFirebaseOrLocal,
+  logoutAdminAuth,
+  subscribeAuthChange,
   getAdminPassword,
   setAdminPassword,
   DEFAULT_USERNAME,
-  DEFAULT_PASSWORD,
 } from "@/lib/adminAuth";
 
 export const Route = createFileRoute("/admin")({
@@ -43,6 +43,7 @@ function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [usernameInput, setUsernameInput] = useState(DEFAULT_USERNAME);
   const [passwordInput, setPasswordInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
@@ -55,20 +56,33 @@ function AdminPage() {
   useEffect(() => {
     setAuthenticated(isAdminAuthenticated());
     setVouchers(getVouchers());
+
+    const unsubscribe = subscribeAuthChange((user) => {
+      if (user) {
+        setAuthenticated(true);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginAdmin(usernameInput, passwordInput)) {
+    setLoading(true);
+    setLoginError(null);
+
+    const res = await loginWithFirebaseOrLocal(usernameInput, passwordInput);
+    setLoading(false);
+
+    if (res.success) {
       setAuthenticated(true);
-      setLoginError(null);
     } else {
-      setLoginError("Invalid username or password. Please try again.");
+      setLoginError(res.error || "Login failed. Please check your credentials.");
     }
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
+  const handleLogout = async () => {
+    await logoutAdminAuth();
     setAuthenticated(false);
     setPasswordInput("");
   };
@@ -150,19 +164,19 @@ function AdminPage() {
     }
   };
 
-  // 1. UNAUTHENTICATED LOGIN SCREEN
+  // 1. LOGIN SCREEN WITH FIREBASE AUTH & LOCAL FALLBACK
   if (!authenticated) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#0f0e17] px-4 py-12 text-white">
         <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#181628] p-8 shadow-2xl">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-3xl">
-            🔒
+            🔥
           </div>
           <h1 className="text-center text-2xl font-extrabold tracking-tight text-white">
-            Admin Portal
+            Firebase & Admin Portal
           </h1>
           <p className="mt-1 text-center text-xs font-medium text-gray-400">
-            Please enter admin credentials to access voucher settings.
+            Sign in with your Firebase Email or default admin credentials.
           </p>
 
           {loginError ? (
@@ -174,7 +188,7 @@ function AdminPage() {
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-                Username
+                Email or Username
               </label>
               <input
                 type="text"
@@ -182,7 +196,7 @@ function AdminPage() {
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none"
-                placeholder="admin"
+                placeholder="admin or name@example.com"
               />
             </div>
 
@@ -202,15 +216,19 @@ function AdminPage() {
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] active:scale-95"
+              disabled={loading}
+              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
             >
-              Log In to Admin
+              {loading ? "Authenticating..." : "Log In to Admin"}
             </button>
           </form>
 
           <div className="mt-6 border-t border-white/10 pt-4 text-center">
             <p className="text-[11px] text-gray-400">
-              Default Credentials: <span className="font-mono text-amber-400">admin</span> / <span className="font-mono text-amber-400">{getAdminPassword()}</span>
+              Firebase Project: <span className="font-mono text-amber-400">spin-the-wheel-crm</span>
+            </p>
+            <p className="mt-1 text-[11px] text-gray-400">
+              Default Fallback: <span className="font-mono text-amber-400">admin</span> / <span className="font-mono text-amber-400">{getAdminPassword()}</span>
             </p>
             <div className="mt-3">
               <Link to="/" className="text-xs font-semibold text-gray-400 hover:text-white underline">

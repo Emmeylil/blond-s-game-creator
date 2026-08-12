@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
+import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDNyR1-zony7SBlW2wuP8aCr4jxVnA1mgA",
@@ -13,6 +14,8 @@ const firebaseConfig = {
 
 // Initialize Firebase (singleton pattern for SSR re-evaluations)
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+export const auth: Auth | undefined = typeof window !== "undefined" ? getAuth(app) : undefined;
 
 export let analytics: Analytics | undefined;
 

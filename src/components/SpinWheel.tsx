@@ -42,7 +42,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
     setRotation(target);
     window.setTimeout(() => {
       setSpinning(false);
-      setResult(SEGMENTS[pick]);
+      setResult(SEGMENTS[pick] ?? null);
     }, 4200);
   };
 

@@ -1,24 +1,41 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { SpinWheel } from "@/components/SpinWheel";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Spin The Wheel — Win Instant Discounts" },
+      {
+        name: "description",
+        content:
+          "Spin the prize wheel for a chance to win ₦1,000, ₦2,000 or ₦3,000 off your next order.",
+      },
+      { property: "og:title", content: "Spin The Wheel — Win Instant Discounts" },
+      {
+        property: "og:description",
+        content: "Give the wheel a spin and unlock an instant discount code.",
+      },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const [open, setOpen] = useState(true);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      {open ? (
+        <SpinWheel onClose={() => setOpen(false)} />
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="rounded-full bg-[image:var(--gradient-spin)] px-8 py-3 text-sm font-bold uppercase tracking-wide text-primary-foreground shadow-[var(--shadow-glow)]"
+        >
+          Open the wheel
+        </button>
+      )}
+    </main>
   );
 }

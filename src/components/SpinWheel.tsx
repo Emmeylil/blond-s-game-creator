@@ -76,33 +76,27 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
             }}
           >
             {SEGMENTS.map((s, i) => (
-              <g key={s.label}>
-                <path d={wedgePath(i)} fill={s.color} />
-                <text
-                  x="100"
-                  y="100"
-                  fill="oklch(0.2 0.02 280)"
-                  fontSize="11"
-                  fontWeight="700"
-                  textAnchor="middle"
-                  transform={`rotate(${i * SEG + SEG / 2} 100 100) translate(0 -40) rotate(90)`}
-                >
-                  {s.label}
-                </text>
-              </g>
+              <path key={s.label} d={wedgePath(i)} fill={s.color} />
+            ))}
+            {SEGMENTS.map((s, i) => (
+              <text
+                key={s.label}
+                x="100"
+                y="100"
+                fill="oklch(0.25 0.02 280)"
+                fontSize="10"
+                fontWeight="700"
+                textAnchor="middle"
+                transform={`rotate(${i * SEG + SEG / 2} 100 100) translate(0 -60) rotate(90)`}
+              >
+                {s.label}
+              </text>
             ))}
             <circle cx="100" cy="100" r="24" fill="var(--hub)" />
-            <text
-              x="100"
-              y="104"
-              fill="var(--color-foreground)"
-              fontSize="11"
-              fontWeight="700"
-              textAnchor="middle"
-            >
-              SPIN
-            </text>
           </svg>
+          <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-foreground">
+            SPIN
+          </span>
         </div>
       </div>
 

@@ -14,6 +14,7 @@ export default defineConfig({
       spa: {
         enabled: true,
       },
+      pages: [{ path: "/" }, { path: "/admin" }],
     }),
     tailwindcss(),
     react(),

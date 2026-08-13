@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getVouchers,
+  subscribeVouchersCloud,
   pickWeightedVoucherIndex,
   claimVoucher,
   getDeviceSpinCount,
@@ -41,9 +42,17 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
     load();
     window.addEventListener("vouchers_updated", load);
     window.addEventListener("spin_count_updated", load);
+
+    const unsubscribeCloud = subscribeVouchersCloud((updated) => {
+      if (Array.isArray(updated) && updated.length > 0) {
+        setVouchers(updated);
+      }
+    });
+
     return () => {
       window.removeEventListener("vouchers_updated", load);
       window.removeEventListener("spin_count_updated", load);
+      unsubscribeCloud();
     };
   }, []);
 
@@ -67,7 +76,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       spins.current * 360 * 5 + (360 - (pick * segAngle + segAngle / 2)) - (rotation % 360) + rotation;
     setRotation(target);
 
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       setSpinning(false);
       const landed = currentVouchers[pick];
       setResult(landed);
@@ -77,7 +86,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       setDeviceSpinCount(newSpinCount);
 
       if (landed && landed.win) {
-        claimVoucher(landed.id);
+        await claimVoucher(landed.id);
         setWinModalVoucher(landed);
       }
     }, 4200);

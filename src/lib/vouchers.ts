@@ -1,3 +1,6 @@
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { db } from "./firebase";
+
 export type VoucherItem = {
   id: string;
   label: string;
@@ -64,13 +67,64 @@ export function getVouchers(): VoucherItem[] {
   return DEFAULT_VOUCHERS;
 }
 
-export function saveVouchers(vouchers: VoucherItem[]): void {
+function saveVouchersLocally(vouchers: VoucherItem[]): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vouchers));
     window.dispatchEvent(new Event("vouchers_updated"));
   } catch (e) {
     console.error("Failed to save vouchers to localStorage", e);
+  }
+}
+
+export async function saveVouchers(vouchers: VoucherItem[]): Promise<void> {
+  // Always save to localStorage immediately for instant local UI update & fallback
+  saveVouchersLocally(vouchers);
+
+  // Sync to Cloud Firestore if connected
+  if (db) {
+    try {
+      const voucherRef = doc(db, "settings", "vouchers");
+      await setDoc(
+        voucherRef,
+        {
+          items: vouchers,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Failed to save vouchers to Cloud Firestore:", e);
+    }
+  }
+}
+
+export function subscribeVouchersCloud(callback: (vouchers: VoucherItem[]) => void): () => void {
+  if (typeof window === "undefined" || !db) {
+    return () => {};
+  }
+
+  try {
+    const voucherRef = doc(db, "settings", "vouchers");
+    const unsubscribe = onSnapshot(
+      voucherRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            saveVouchersLocally(data.items);
+            callback(data.items);
+          }
+        }
+      },
+      (error) => {
+        console.warn("Firestore voucher listener notice:", error.message);
+      }
+    );
+    return unsubscribe;
+  } catch (e) {
+    console.error("Error setting up Firestore voucher listener:", e);
+    return () => {};
   }
 }
 
@@ -105,7 +159,7 @@ export function pickWeightedVoucherIndex(
   return fallbackTryAgain;
 }
 
-export function claimVoucher(id: string): void {
+export async function claimVoucher(id: string): Promise<void> {
   const current = getVouchers();
   const updated = current.map((v) => {
     if (v.id === id && v.win && v.quantity > 0) {
@@ -113,5 +167,6 @@ export function claimVoucher(id: string): void {
     }
     return v;
   });
-  saveVouchers(updated);
+  await saveVouchers(updated);
 }
+

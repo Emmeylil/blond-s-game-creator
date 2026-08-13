@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getVouchers,
   saveVouchers,
+  subscribeVouchersCloud,
   resetDeviceSpinCount,
   DEFAULT_VOUCHERS,
   type VoucherItem,
@@ -46,6 +47,7 @@ function AdminPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+  const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const [changePassOpen, setChangePassOpen] = useState(false);
@@ -56,13 +58,22 @@ function AdminPage() {
     setAuthenticated(isAdminAuthenticated());
     setVouchers(getVouchers());
 
-    const unsubscribe = subscribeAuthChange((user) => {
+    const unsubscribeAuth = subscribeAuthChange((user) => {
       if (user) {
         setAuthenticated(true);
       }
     });
 
-    return () => unsubscribe();
+    const unsubscribeCloud = subscribeVouchersCloud((updated) => {
+      if (Array.isArray(updated) && updated.length > 0) {
+        setVouchers(updated);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeCloud();
+    };
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -148,18 +159,22 @@ function AdminPage() {
     setVouchers((prev) => prev.filter((v) => v.id !== id));
   };
 
-  const handleSave = () => {
-    saveVouchers(vouchers);
+  const handleSave = async () => {
+    setSaving(true);
+    await saveVouchers(vouchers);
+    setSaving(false);
     setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    setTimeout(() => setSavedNotice(false), 3500);
   };
 
-  const handleResetDefaults = () => {
+  const handleResetDefaults = async () => {
     if (confirm("Are you sure you want to reset all vouchers to default values?")) {
+      setSaving(true);
       setVouchers(DEFAULT_VOUCHERS);
-      saveVouchers(DEFAULT_VOUCHERS);
+      await saveVouchers(DEFAULT_VOUCHERS);
+      setSaving(false);
       setSavedNotice(true);
-      setTimeout(() => setSavedNotice(false), 3000);
+      setTimeout(() => setSavedNotice(false), 3500);
     }
   };
 
@@ -443,9 +458,10 @@ function AdminPage() {
             </p>
             <button
               onClick={handleSave}
-              className="rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition-all hover:scale-105 active:scale-95"
+              disabled={saving}
+              className="rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
             >
-              Save All Changes
+              {saving ? "Saving to Cloud..." : "Save All Changes"}
             </button>
           </div>
         </div>

@@ -20,6 +20,7 @@ export const DEFAULT_VOUCHERS: VoucherItem[] = [
 
 const STORAGE_KEY = "spin_wheel_vouchers_v1";
 const DEVICE_SPINS_KEY = "spin_wheel_device_spins_count_v1";
+const DEVICE_WON_KEY = "spin_wheel_device_won_v1";
 export const MAX_SPINS_PER_DEVICE = 5;
 
 export function getDeviceSpinCount(): number {
@@ -43,10 +44,29 @@ export function incrementDeviceSpinCount(): number {
   return next;
 }
 
+export function getDeviceWonVoucher(): VoucherItem | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const data = localStorage.getItem(DEVICE_WON_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setDeviceWonVoucher(voucher: VoucherItem): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEVICE_WON_KEY, JSON.stringify(voucher));
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
+}
+
 export function resetDeviceSpinCount(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(DEVICE_SPINS_KEY, "0");
+    localStorage.removeItem(DEVICE_WON_KEY);
     window.dispatchEvent(new Event("spin_count_updated"));
   } catch (e) {}
 }
@@ -135,7 +155,26 @@ export function pickWeightedVoucherIndex(
   const tryAgainIdx = vouchers.findIndex((v) => !v.win);
   const fallbackTryAgain = tryAgainIdx >= 0 ? tryAgainIdx : 0;
 
-  // RULE: First spin on a device should mostly (90% chance) land on "Try Again"
+  // RULE 1: If this is the 5th (last allowed) spin and device has not won yet, FORCE a win if stock exists
+  if (currentSpinCount >= MAX_SPINS_PER_DEVICE - 1) {
+    const winningIndices = vouchers
+      .map((v, i) => ({ v, i }))
+      .filter(({ v }) => v.win && v.quantity > 0);
+
+    if (winningIndices.length > 0) {
+      const totalWinWeight = winningIndices.reduce((sum, item) => sum + item.v.quantity, 0);
+      let rand = Math.random() * totalWinWeight;
+      for (const item of winningIndices) {
+        if (rand < item.v.quantity) {
+          return item.i;
+        }
+        rand -= item.v.quantity;
+      }
+      return winningIndices[0].i;
+    }
+  }
+
+  // RULE 2: First spin on a device should mostly (90% chance) land on "Try Again"
   if (currentSpinCount === 0) {
     if (Math.random() < 0.90) {
       return fallbackTryAgain;
@@ -169,4 +208,5 @@ export async function claimVoucher(id: string): Promise<void> {
   });
   await saveVouchers(updated);
 }
+
 

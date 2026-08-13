@@ -6,6 +6,8 @@ import {
   claimVoucher,
   getDeviceSpinCount,
   incrementDeviceSpinCount,
+  getDeviceWonVoucher,
+  setDeviceWonVoucher,
   MAX_SPINS_PER_DEVICE,
   type VoucherItem,
 } from "@/lib/vouchers";
@@ -28,6 +30,7 @@ function wedgePath(index: number, total: number) {
 export function SpinWheel({ onClose }: { onClose: () => void }) {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [deviceSpinCount, setDeviceSpinCount] = useState(0);
+  const [wonVoucher, setWonVoucher] = useState<VoucherItem | null>(null);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<VoucherItem | null>(null);
@@ -38,6 +41,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
     const load = () => {
       setVouchers(getVouchers());
       setDeviceSpinCount(getDeviceSpinCount());
+      setWonVoucher(getDeviceWonVoucher());
     };
     load();
     window.addEventListener("vouchers_updated", load);
@@ -60,14 +64,15 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   const totalSegments = currentVouchers.length;
   const segAngle = 360 / Math.max(1, totalSegments);
   const spinsLeft = Math.max(0, MAX_SPINS_PER_DEVICE - deviceSpinCount);
-  const isLimitReached = spinsLeft <= 0;
+  const hasAlreadyWon = Boolean(wonVoucher);
+  const isLimitReached = spinsLeft <= 0 || hasAlreadyWon;
 
   const spin = () => {
     if (spinning || totalSegments === 0 || isLimitReached) return;
     setSpinning(true);
     setResult(null);
 
-    // Pick segment taking into account first-spin rule & weighted stock
+    // Pick segment taking into account first-spin rule, 5th spin guaranteed win & weighted stock
     const pick = pickWeightedVoucherIndex(currentVouchers, deviceSpinCount);
     spins.current += 1;
 
@@ -86,6 +91,8 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       setDeviceSpinCount(newSpinCount);
 
       if (landed && landed.win) {
+        setDeviceWonVoucher(landed);
+        setWonVoucher(landed);
         await claimVoucher(landed.id);
         setWinModalVoucher(landed);
       }
@@ -113,7 +120,13 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
         {/* Spin Count Badge */}
         <div className="mt-3 flex justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
-            <span>🎯</span> Spins Remaining: {spinsLeft} / {MAX_SPINS_PER_DEVICE}
+            {hasAlreadyWon ? (
+              <span>🏆 Prize Claimed!</span>
+            ) : (
+              <>
+                <span>🎯</span> Spins Remaining: {spinsLeft} / {MAX_SPINS_PER_DEVICE}
+              </>
+            )}
           </span>
         </div>
 
@@ -159,13 +172,15 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
         <p className="mt-5 min-h-6 text-center text-sm text-muted-foreground">
           {spinning
             ? "Spinning..."
-            : isLimitReached
-              ? "⚠️ You have used all 5 spins allowed for this device."
-              : result
-                ? result.win
-                  ? `🎉 You won ${result.label}!`
-                  : "😅 Try Again!"
-                : "Click the wheel or SPIN to start"}
+            : hasAlreadyWon
+              ? `🎉 You won ${wonVoucher?.label}! (Code: ${wonVoucher?.code})`
+              : isLimitReached
+                ? "⚠️ You have used all 5 spins allowed for this device."
+                : result
+                  ? result.win
+                    ? `🎉 You won ${result.label}!`
+                    : "😅 Try Again!"
+                  : "Click the wheel or SPIN to start"}
         </p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
@@ -174,7 +189,13 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
             disabled={spinning || isLimitReached}
             className="rounded-full bg-[image:var(--gradient-spin)] px-10 py-3 text-sm font-bold uppercase tracking-wide text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer disabled:cursor-not-allowed"
           >
-            {spinning ? "..." : isLimitReached ? "Limit Reached" : "Spin"}
+            {spinning
+              ? "..."
+              : hasAlreadyWon
+                ? "Prize Claimed"
+                : isLimitReached
+                  ? "Limit Reached"
+                  : "Spin"}
           </button>
         </div>
       </div>

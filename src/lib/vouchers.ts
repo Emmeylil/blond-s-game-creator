@@ -18,58 +18,104 @@ export const DEFAULT_VOUCHERS: VoucherItem[] = [
   { id: "4", label: "₦3,000 OFF", code: "", amount: 3000, quantity: 10, color: "#AC80F7", win: true },
 ];
 
-const STORAGE_KEY = "spin_wheel_vouchers_v3";
-const DEVICE_SPINS_KEY = "spin_wheel_device_spins_count_v1";
-const DEVICE_WON_KEY = "spin_wheel_device_won_v1";
-const DEVICE_CLAIM_TIME_KEY = "spin_wheel_device_claim_time_v1";
+const STORAGE_KEY = "spin_wheel_vouchers_v4";
+const DEVICE_DAILY_DATE_KEY = "spin_wheel_daily_date_v2";
+const DEVICE_DAILY_SPINS_KEY = "spin_wheel_daily_spins_v2";
+const DEVICE_DAILY_WON_KEY = "spin_wheel_daily_won_v2";
 export const MAX_SPINS_PER_DEVICE = 5;
-export const COOLDOWN_24H_MS = 24 * 60 * 60 * 1000;
 
-export function getClaimTimestamp(): number | null {
-  if (typeof window === "undefined") return null;
+export function getTodayDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function getMsUntilMidnight(): number {
+  const d = new Date();
+  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0);
+  return midnight.getTime() - d.getTime();
+}
+
+export function formatTimeUntilMidnight(ms: number): string {
+  if (ms <= 0) return "00:00:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+export function checkAndAutoResetDaily(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    const val = localStorage.getItem(DEVICE_CLAIM_TIME_KEY);
-    return val ? parseInt(val, 10) || null : null;
+    const today = getTodayDateString();
+    const storedDate = localStorage.getItem(DEVICE_DAILY_DATE_KEY);
+    if (storedDate !== today) {
+      localStorage.setItem(DEVICE_DAILY_DATE_KEY, today);
+      localStorage.setItem(DEVICE_DAILY_SPINS_KEY, "0");
+      localStorage.removeItem(DEVICE_DAILY_WON_KEY);
+      window.dispatchEvent(new Event("spin_count_updated"));
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+export function getDeviceSpinCount(): number {
+  if (typeof window === "undefined") return 0;
+  checkAndAutoResetDaily();
+  try {
+    const val = localStorage.getItem(DEVICE_DAILY_SPINS_KEY);
+    return val ? Math.max(0, parseInt(val, 10) || 0) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export function incrementDeviceSpinCount(): number {
+  if (typeof window === "undefined") return 0;
+  checkAndAutoResetDaily();
+  const current = getDeviceSpinCount();
+  const next = current + 1;
+  try {
+    localStorage.setItem(DEVICE_DAILY_SPINS_KEY, String(next));
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
+  return next;
+}
+
+export function getDeviceWonVoucher(): VoucherItem | null {
+  if (typeof window === "undefined") return null;
+  if (checkAndAutoResetDaily()) return null;
+  try {
+    const data = localStorage.getItem(DEVICE_DAILY_WON_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data);
+    if (parsed) {
+      const sanitized = sanitizeVouchers([parsed]);
+      return sanitized[0] ?? null;
+    }
+    return null;
   } catch (e) {
     return null;
   }
 }
 
-export function checkAndAutoReset24h(): boolean {
-  if (typeof window === "undefined") return false;
-  const timestamp = getClaimTimestamp();
-  if (!timestamp) return false;
-
-  const elapsed = Date.now() - timestamp;
-  if (elapsed >= COOLDOWN_24H_MS) {
-    resetDeviceSpinCount();
-    return true;
-  }
-  return false;
+export function setDeviceWonVoucher(voucher: VoucherItem): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEVICE_DAILY_WON_KEY, JSON.stringify(voucher));
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
 }
 
-export function getRemainingCooldownMs(): number {
-  if (typeof window === "undefined") return 0;
-  const timestamp = getClaimTimestamp();
-  if (!timestamp) return 0;
-
-  const elapsed = Date.now() - timestamp;
-  if (elapsed >= COOLDOWN_24H_MS) {
-    checkAndAutoReset24h();
-    return 0;
-  }
-  return COOLDOWN_24H_MS - elapsed;
-}
-
-export function formatCooldownTime(ms: number): string {
-  if (ms <= 0) return "0m";
-  const totalMinutes = Math.ceil(ms / (1000 * 60));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
+export function resetDeviceSpinCount(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEVICE_DAILY_DATE_KEY, getTodayDateString());
+    localStorage.setItem(DEVICE_DAILY_SPINS_KEY, "0");
+    localStorage.removeItem(DEVICE_DAILY_WON_KEY);
+    window.dispatchEvent(new Event("spin_count_updated"));
+  } catch (e) {}
 }
 
 export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
@@ -90,71 +136,14 @@ export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
   });
 }
 
-export function getDeviceSpinCount(): number {
-  if (typeof window === "undefined") return 0;
-  checkAndAutoReset24h();
-  try {
-    const val = localStorage.getItem(DEVICE_SPINS_KEY);
-    return val ? Math.max(0, parseInt(val, 10) || 0) : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-export function incrementDeviceSpinCount(): number {
-  if (typeof window === "undefined") return 0;
-  checkAndAutoReset24h();
-  const current = getDeviceSpinCount();
-  const next = current + 1;
-  try {
-    localStorage.setItem(DEVICE_SPINS_KEY, String(next));
-    if (next >= MAX_SPINS_PER_DEVICE && !getClaimTimestamp()) {
-      localStorage.setItem(DEVICE_CLAIM_TIME_KEY, String(Date.now()));
-    }
-    window.dispatchEvent(new Event("spin_count_updated"));
-  } catch (e) {}
-  return next;
-}
-
-export function getDeviceWonVoucher(): VoucherItem | null {
-  if (typeof window === "undefined") return null;
-  if (checkAndAutoReset24h()) return null;
-  try {
-    const data = localStorage.getItem(DEVICE_WON_KEY);
-    if (!data) return null;
-    const parsed = JSON.parse(data);
-    if (parsed) {
-      const sanitized = sanitizeVouchers([parsed]);
-      return sanitized[0] ?? null;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-export function setDeviceWonVoucher(voucher: VoucherItem): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(DEVICE_WON_KEY, JSON.stringify(voucher));
-    localStorage.setItem(DEVICE_CLAIM_TIME_KEY, String(Date.now()));
-    window.dispatchEvent(new Event("spin_count_updated"));
-  } catch (e) {}
-}
-
-export function resetDeviceSpinCount(): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(DEVICE_SPINS_KEY, "0");
-    localStorage.removeItem(DEVICE_WON_KEY);
-    localStorage.removeItem(DEVICE_CLAIM_TIME_KEY);
-    window.dispatchEvent(new Event("spin_count_updated"));
-  } catch (e) {}
-}
-
 export function getVouchers(): VoucherItem[] {
   if (typeof window === "undefined") return DEFAULT_VOUCHERS;
   try {
+    // Automatically purge old restrictive keys from browser localStorage
+    localStorage.removeItem("spin_wheel_device_spins_count_v1");
+    localStorage.removeItem("spin_wheel_device_won_v1");
+    localStorage.removeItem("spin_wheel_device_claim_time_v1");
+
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       const parsed = JSON.parse(data);
@@ -246,7 +235,7 @@ export function pickWeightedVoucherIndex(
   const tryAgainIdx = vouchers.findIndex((v) => !v.win);
   const fallbackTryAgain = tryAgainIdx >= 0 ? tryAgainIdx : 0;
 
-  // RULE 1: If this is the 5th (last allowed) spin and device has not won yet, FORCE a win if stock exists
+  // RULE 1: If this is the 5th (last allowed spin of the day) and device has not won yet, FORCE a win if stock exists
   if (currentSpinCount >= MAX_SPINS_PER_DEVICE - 1) {
     const winningIndices = vouchers
       .map((v, i) => ({ v, i }))
@@ -265,7 +254,7 @@ export function pickWeightedVoucherIndex(
     }
   }
 
-  // RULE 2: First spin on a device should mostly (90% chance) land on "Try Again"
+  // RULE 2: First spin of the day should mostly (90% chance) land on "Try Again" so user gets multiple spins
   if (currentSpinCount === 0) {
     if (Math.random() < 0.90) {
       return fallbackTryAgain;

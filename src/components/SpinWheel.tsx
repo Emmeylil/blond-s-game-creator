@@ -4,6 +4,13 @@ import {
   subscribeVouchersCloud,
   pickWeightedVoucherIndex,
   claimVoucher,
+  getDeviceSpinCount,
+  incrementDeviceSpinCount,
+  getDeviceWonVoucher,
+  setDeviceWonVoucher,
+  getMsUntilMidnight,
+  formatTimeUntilMidnight,
+  MAX_SPINS_PER_DEVICE,
   type VoucherItem,
 } from "@/lib/vouchers";
 import { WinModal } from "./WinModal";
@@ -24,6 +31,9 @@ function wedgePath(index: number, total: number) {
 
 export function SpinWheel({ onClose }: { onClose: () => void }) {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+  const [deviceSpinCount, setDeviceSpinCount] = useState(0);
+  const [wonVoucher, setWonVoucher] = useState<VoucherItem | null>(null);
+  const [msUntilMidnight, setMsUntilMidnight] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<VoucherItem | null>(null);
@@ -33,9 +43,21 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const load = () => {
       setVouchers(getVouchers());
+      setDeviceSpinCount(getDeviceSpinCount());
+      setWonVoucher(getDeviceWonVoucher());
+      setMsUntilMidnight(getMsUntilMidnight());
     };
     load();
     window.addEventListener("vouchers_updated", load);
+    window.addEventListener("spin_count_updated", load);
+
+    const timer = setInterval(() => {
+      const ms = getMsUntilMidnight();
+      setMsUntilMidnight(ms);
+      if (ms > 86390000) {
+        load();
+      }
+    }, 1000);
 
     const unsubscribeCloud = subscribeVouchersCloud((updated) => {
       if (Array.isArray(updated) && updated.length > 0) {
@@ -44,7 +66,9 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
     });
 
     return () => {
+      clearInterval(timer);
       window.removeEventListener("vouchers_updated", load);
+      window.removeEventListener("spin_count_updated", load);
       unsubscribeCloud();
     };
   }, []);
@@ -52,14 +76,18 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   const currentVouchers = vouchers.length > 0 ? vouchers : getVouchers();
   const totalSegments = currentVouchers.length;
   const segAngle = 360 / Math.max(1, totalSegments);
+  const spinsLeft = Math.max(0, MAX_SPINS_PER_DEVICE - deviceSpinCount);
+  const hasAlreadyWon = Boolean(wonVoucher);
+  const isLimitReached = spinsLeft <= 0 || hasAlreadyWon;
+  const formattedCountdown = formatTimeUntilMidnight(msUntilMidnight);
 
   const spin = () => {
-    if (spinning || totalSegments === 0) return;
+    if (spinning || totalSegments === 0 || isLimitReached) return;
     setSpinning(true);
     setResult(null);
 
-    // Pick segment taking into account weighted stock
-    const pick = pickWeightedVoucherIndex(currentVouchers, 0);
+    // Pick segment taking into account first-spin rule, 5th spin guaranteed win & weighted stock
+    const pick = pickWeightedVoucherIndex(currentVouchers, deviceSpinCount);
     spins.current += 1;
 
     // Pointer sits at top (0deg); center of picked wedge must land there
@@ -72,7 +100,13 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       const landed = currentVouchers[pick];
       setResult(landed ?? null);
 
+      // Increment spin count for this device today
+      const newSpinCount = incrementDeviceSpinCount();
+      setDeviceSpinCount(newSpinCount);
+
       if (landed && landed.win) {
+        setDeviceWonVoucher(landed);
+        setWonVoucher(landed);
         await claimVoucher(landed.id);
         setWinModalVoucher(landed);
       }
@@ -97,10 +131,18 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
           Exciting Prizes Awaits You!
         </p>
 
-        {/* Spin Badge */}
+        {/* Spin Count / Midnight Reset Badge */}
         <div className="mt-3 flex justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
-            <span>✨</span> Spin to Win Instant Prizes!
+            {hasAlreadyWon ? (
+              <span>🏆 Prize Claimed! Resets in {formattedCountdown}</span>
+            ) : isLimitReached ? (
+              <span>⏳ 5 Spins Used. Resets in {formattedCountdown}</span>
+            ) : (
+              <>
+                <span>🎯</span> Spins Remaining: {spinsLeft} / {MAX_SPINS_PER_DEVICE}
+              </>
+            )}
           </span>
         </div>
 
@@ -111,7 +153,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
               viewBox="0 0 200 200"
               onClick={spin}
               className={`h-full w-full rounded-full shadow-[var(--shadow-wheel)] ring-4 ring-border ${
-                spinning ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                isLimitReached || spinning ? "cursor-not-allowed opacity-80" : "cursor-pointer"
               }`}
               style={{
                 transform: `rotate(${rotation}deg)`,
@@ -146,20 +188,32 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
         <p className="mt-5 min-h-6 text-center text-sm text-muted-foreground">
           {spinning
             ? "Spinning..."
-            : result
-              ? result.win
-                ? `🎉 You won ${result.label}!`
-                : "😅 Try Again! Give it another spin."
-              : "Click the wheel or SPIN to start!"}
+            : hasAlreadyWon
+              ? wonVoucher?.code
+                ? `🎉 You won ${wonVoucher?.label}! Code: ${wonVoucher?.code}`
+                : `🎉 You won ${wonVoucher?.label}!`
+              : isLimitReached
+                ? `⏳ You used all 5 spins allowed for today. Next spins at 11:59 PM (${formattedCountdown}).`
+                : result
+                  ? result.win
+                    ? `🎉 You won ${result.label}!`
+                    : "😅 Try Again!"
+                  : "Click the wheel or SPIN to start"}
         </p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           <button
             onClick={spin}
-            disabled={spinning}
+            disabled={spinning || isLimitReached}
             className="rounded-full bg-[image:var(--gradient-spin)] px-10 py-3 text-sm font-bold uppercase tracking-wide text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer disabled:cursor-not-allowed"
           >
-            {spinning ? "..." : "Spin Now"}
+            {spinning
+              ? "..."
+              : hasAlreadyWon
+                ? "Prize Claimed"
+                : isLimitReached
+                  ? `Resets in ${formattedCountdown}`
+                  : "Spin"}
           </button>
         </div>
       </div>

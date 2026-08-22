@@ -402,7 +402,7 @@ function AdminPage() {
                     disabled={!v.win}
                     onChange={(e) => handleUpdateField(v.id, "code", e.target.value)}
                     className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono font-bold text-amber-400 focus:border-amber-500 focus:outline-none disabled:opacity-40"
-                    placeholder="e.g. RJA26"
+                    placeholder="e.g. SAVE1000"
                   />
                 </div>
 

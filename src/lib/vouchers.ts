@@ -124,8 +124,8 @@ export function getDeviceWonVoucher(): VoucherItem | null {
     if (!data) return null;
     const parsed = JSON.parse(data);
     if (parsed) {
-      const [sanitized] = sanitizeVouchers([parsed]);
-      return sanitized;
+      const sanitized = sanitizeVouchers([parsed]);
+      return sanitized[0] ?? null;
     }
     return null;
   } catch (e) {
@@ -214,8 +214,9 @@ export function subscribeVouchersCloud(callback: (vouchers: VoucherItem[]) => vo
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
-          if (data && Array.isArray(data.items) && data.items.length > 0) {
-            const clean = sanitizeVouchers(data.items);
+          const items = data ? data["items"] : undefined;
+          if (Array.isArray(items) && items.length > 0) {
+            const clean = sanitizeVouchers(items as VoucherItem[]);
             saveVouchersLocally(clean);
             callback(clean);
           }
@@ -260,7 +261,7 @@ export function pickWeightedVoucherIndex(
         }
         rand -= item.v.quantity;
       }
-      return winningIndices[0].i;
+      return winningIndices[0]?.i ?? fallbackTryAgain;
     }
   }
 
@@ -280,10 +281,11 @@ export function pickWeightedVoucherIndex(
 
   let random = Math.random() * totalWeight;
   for (let i = 0; i < vouchers.length; i++) {
-    if (random < weights[i]) {
+    const weight = weights[i] ?? 0;
+    if (random < weight) {
       return i;
     }
-    random -= weights[i];
+    random -= weight;
   }
   return fallbackTryAgain;
 }

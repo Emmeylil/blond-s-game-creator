@@ -142,7 +142,7 @@ function AdminPage() {
     const newVoucher: VoucherItem = {
       id: newId,
       label: "₦5,000 OFF",
-      code: `WIN${Math.floor(1000 + Math.random() * 9000)}`,
+      code: "",
       amount: 5000,
       quantity: 5,
       color: COLOR_PRESETS[vouchers.length % COLOR_PRESETS.length],
@@ -402,7 +402,7 @@ function AdminPage() {
                     disabled={!v.win}
                     onChange={(e) => handleUpdateField(v.id, "code", e.target.value)}
                     className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono font-bold text-amber-400 focus:border-amber-500 focus:outline-none disabled:opacity-40"
-                    placeholder="e.g. SAVE1000"
+                    placeholder="Enter code..."
                   />
                 </div>
 

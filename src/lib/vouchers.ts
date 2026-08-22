@@ -13,12 +13,12 @@ export type VoucherItem = {
 
 export const DEFAULT_VOUCHERS: VoucherItem[] = [
   { id: "1", label: "Try Again", code: "", amount: 0, quantity: 100, color: "#7F4CEF", win: false },
-  { id: "2", label: "₦1,000 OFF", code: "SAVE1000", amount: 1000, quantity: 50, color: "#F68B1E", win: true },
-  { id: "3", label: "₦2,000 OFF", code: "SAVE2000", amount: 2000, quantity: 20, color: "#3B82F6", win: true },
-  { id: "4", label: "₦3,000 OFF", code: "SAVE3000", amount: 3000, quantity: 10, color: "#AC80F7", win: true },
+  { id: "2", label: "₦1,000 OFF", code: "", amount: 1000, quantity: 50, color: "#F68B1E", win: true },
+  { id: "3", label: "₦2,000 OFF", code: "", amount: 2000, quantity: 20, color: "#3B82F6", win: true },
+  { id: "4", label: "₦3,000 OFF", code: "", amount: 3000, quantity: 10, color: "#AC80F7", win: true },
 ];
 
-const STORAGE_KEY = "spin_wheel_vouchers_v2";
+const STORAGE_KEY = "spin_wheel_vouchers_v3";
 const DEVICE_SPINS_KEY = "spin_wheel_device_spins_count_v1";
 const DEVICE_WON_KEY = "spin_wheel_device_won_v1";
 export const MAX_SPINS_PER_DEVICE = 5;
@@ -27,9 +27,16 @@ export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
   if (!Array.isArray(vouchers)) return DEFAULT_VOUCHERS;
   return vouchers.map((v) => {
     let code = v.code || "";
-    if (code === "BLOND1K") code = "SAVE1000";
-    if (code === "BLOND2K") code = "SAVE2000";
-    if (code === "RJA26") code = "SAVE3000";
+    if (
+      code === "BLOND1K" ||
+      code === "BLOND2K" ||
+      code === "RJA26" ||
+      code === "SAVE1000" ||
+      code === "SAVE2000" ||
+      code === "SAVE3000"
+    ) {
+      code = "";
+    }
     return { ...v, code };
   });
 }

@@ -21,7 +21,56 @@ export const DEFAULT_VOUCHERS: VoucherItem[] = [
 const STORAGE_KEY = "spin_wheel_vouchers_v3";
 const DEVICE_SPINS_KEY = "spin_wheel_device_spins_count_v1";
 const DEVICE_WON_KEY = "spin_wheel_device_won_v1";
+const DEVICE_CLAIM_TIME_KEY = "spin_wheel_device_claim_time_v1";
 export const MAX_SPINS_PER_DEVICE = 5;
+export const COOLDOWN_24H_MS = 24 * 60 * 60 * 1000;
+
+export function getClaimTimestamp(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const val = localStorage.getItem(DEVICE_CLAIM_TIME_KEY);
+    return val ? parseInt(val, 10) || null : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function checkAndAutoReset24h(): boolean {
+  if (typeof window === "undefined") return false;
+  const timestamp = getClaimTimestamp();
+  if (!timestamp) return false;
+
+  const elapsed = Date.now() - timestamp;
+  if (elapsed >= COOLDOWN_24H_MS) {
+    resetDeviceSpinCount();
+    return true;
+  }
+  return false;
+}
+
+export function getRemainingCooldownMs(): number {
+  if (typeof window === "undefined") return 0;
+  const timestamp = getClaimTimestamp();
+  if (!timestamp) return 0;
+
+  const elapsed = Date.now() - timestamp;
+  if (elapsed >= COOLDOWN_24H_MS) {
+    checkAndAutoReset24h();
+    return 0;
+  }
+  return COOLDOWN_24H_MS - elapsed;
+}
+
+export function formatCooldownTime(ms: number): string {
+  if (ms <= 0) return "0m";
+  const totalMinutes = Math.ceil(ms / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
 
 export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
   if (!Array.isArray(vouchers)) return DEFAULT_VOUCHERS;
@@ -43,6 +92,7 @@ export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
 
 export function getDeviceSpinCount(): number {
   if (typeof window === "undefined") return 0;
+  checkAndAutoReset24h();
   try {
     const val = localStorage.getItem(DEVICE_SPINS_KEY);
     return val ? Math.max(0, parseInt(val, 10) || 0) : 0;
@@ -53,10 +103,14 @@ export function getDeviceSpinCount(): number {
 
 export function incrementDeviceSpinCount(): number {
   if (typeof window === "undefined") return 0;
+  checkAndAutoReset24h();
   const current = getDeviceSpinCount();
   const next = current + 1;
   try {
     localStorage.setItem(DEVICE_SPINS_KEY, String(next));
+    if (next >= MAX_SPINS_PER_DEVICE && !getClaimTimestamp()) {
+      localStorage.setItem(DEVICE_CLAIM_TIME_KEY, String(Date.now()));
+    }
     window.dispatchEvent(new Event("spin_count_updated"));
   } catch (e) {}
   return next;
@@ -64,6 +118,7 @@ export function incrementDeviceSpinCount(): number {
 
 export function getDeviceWonVoucher(): VoucherItem | null {
   if (typeof window === "undefined") return null;
+  if (checkAndAutoReset24h()) return null;
   try {
     const data = localStorage.getItem(DEVICE_WON_KEY);
     if (!data) return null;
@@ -82,6 +137,7 @@ export function setDeviceWonVoucher(voucher: VoucherItem): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(DEVICE_WON_KEY, JSON.stringify(voucher));
+    localStorage.setItem(DEVICE_CLAIM_TIME_KEY, String(Date.now()));
     window.dispatchEvent(new Event("spin_count_updated"));
   } catch (e) {}
 }
@@ -91,6 +147,7 @@ export function resetDeviceSpinCount(): void {
   try {
     localStorage.setItem(DEVICE_SPINS_KEY, "0");
     localStorage.removeItem(DEVICE_WON_KEY);
+    localStorage.removeItem(DEVICE_CLAIM_TIME_KEY);
     window.dispatchEvent(new Event("spin_count_updated"));
   } catch (e) {}
 }

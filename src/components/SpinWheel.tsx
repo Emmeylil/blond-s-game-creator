@@ -8,6 +8,8 @@ import {
   incrementDeviceSpinCount,
   getDeviceWonVoucher,
   setDeviceWonVoucher,
+  getRemainingCooldownMs,
+  formatCooldownTime,
   MAX_SPINS_PER_DEVICE,
   type VoucherItem,
 } from "@/lib/vouchers";
@@ -31,6 +33,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [deviceSpinCount, setDeviceSpinCount] = useState(0);
   const [wonVoucher, setWonVoucher] = useState<VoucherItem | null>(null);
+  const [cooldownMs, setCooldownMs] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<VoucherItem | null>(null);
@@ -42,10 +45,19 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       setVouchers(getVouchers());
       setDeviceSpinCount(getDeviceSpinCount());
       setWonVoucher(getDeviceWonVoucher());
+      setCooldownMs(getRemainingCooldownMs());
     };
     load();
     window.addEventListener("vouchers_updated", load);
     window.addEventListener("spin_count_updated", load);
+
+    const timer = setInterval(() => {
+      const remaining = getRemainingCooldownMs();
+      setCooldownMs(remaining);
+      if (remaining === 0) {
+        load();
+      }
+    }, 10000);
 
     const unsubscribeCloud = subscribeVouchersCloud((updated) => {
       if (Array.isArray(updated) && updated.length > 0) {
@@ -54,6 +66,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
     });
 
     return () => {
+      clearInterval(timer);
       window.removeEventListener("vouchers_updated", load);
       window.removeEventListener("spin_count_updated", load);
       unsubscribeCloud();
@@ -66,6 +79,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
   const spinsLeft = Math.max(0, MAX_SPINS_PER_DEVICE - deviceSpinCount);
   const hasAlreadyWon = Boolean(wonVoucher);
   const isLimitReached = spinsLeft <= 0 || hasAlreadyWon;
+  const formattedCooldown = formatCooldownTime(cooldownMs);
 
   const spin = () => {
     if (spinning || totalSegments === 0 || isLimitReached) return;
@@ -89,6 +103,7 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
       // Increment spin count for this device
       const newSpinCount = incrementDeviceSpinCount();
       setDeviceSpinCount(newSpinCount);
+      setCooldownMs(getRemainingCooldownMs());
 
       if (landed && landed.win) {
         setDeviceWonVoucher(landed);
@@ -117,11 +132,13 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
           Exciting Prizes Awaits You!
         </p>
 
-        {/* Spin Count Badge */}
+        {/* Spin Count / Cooldown Badge */}
         <div className="mt-3 flex justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold text-amber-400">
             {hasAlreadyWon ? (
-              <span>🏆 Prize Claimed!</span>
+              <span>🏆 Prize Claimed! (Spin again in {formattedCooldown})</span>
+            ) : isLimitReached ? (
+              <span>⏳ Spin again in {formattedCooldown}</span>
             ) : (
               <>
                 <span>🎯</span> Spins Remaining: {spinsLeft} / {MAX_SPINS_PER_DEVICE}
@@ -173,9 +190,11 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
           {spinning
             ? "Spinning..."
             : hasAlreadyWon
-              ? `🎉 You won ${wonVoucher?.label}! (Code: ${wonVoucher?.code})`
+              ? wonVoucher?.code
+                ? `🎉 You won ${wonVoucher?.label}! Code: ${wonVoucher?.code} (Spin again in ${formattedCooldown})`
+                : `🎉 You won ${wonVoucher?.label}! (Spin again in ${formattedCooldown})`
               : isLimitReached
-                ? "⚠️ You have used all 5 spins allowed for this device."
+                ? `⏳ Next spin available in ${formattedCooldown}.`
                 : result
                   ? result.win
                     ? `🎉 You won ${result.label}!`
@@ -192,9 +211,9 @@ export function SpinWheel({ onClose }: { onClose: () => void }) {
             {spinning
               ? "..."
               : hasAlreadyWon
-                ? "Prize Claimed"
+                ? `Available in ${formattedCooldown}`
                 : isLimitReached
-                  ? "Limit Reached"
+                  ? `Available in ${formattedCooldown}`
                   : "Spin"}
           </button>
         </div>

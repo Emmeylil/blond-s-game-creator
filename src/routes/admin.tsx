@@ -387,7 +387,6 @@ function AdminPage() {
                     value={v.label}
                     onChange={(e) => handleUpdateField(v.id, "label", e.target.value)}
                     className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none"
-                    placeholder="e.g. ₦3,000 OFF"
                   />
                 </div>
 
@@ -402,7 +401,6 @@ function AdminPage() {
                     disabled={!v.win}
                     onChange={(e) => handleUpdateField(v.id, "code", e.target.value)}
                     className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono font-bold text-amber-400 focus:border-amber-500 focus:outline-none disabled:opacity-40"
-                    placeholder="Enter code..."
                   />
                 </div>
 

@@ -23,10 +23,10 @@ if (typeof window !== "undefined" && db) {
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          if (data?.password) {
-            cachedCloudPassword = String(data.password);
+          if (data?.["password"]) {
+            cachedCloudPassword = String(data["password"]);
             try {
-              localStorage.setItem(ADMIN_PASS_KEY, String(data.password));
+              localStorage.setItem(ADMIN_PASS_KEY, String(data["password"]));
             } catch (e) {}
           }
         }

@@ -274,8 +274,9 @@ export async function claimVoucher(id: string): Promise<void> {
       const snap = await getDoc(voucherRef);
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data?.items) && data.items.length > 0) {
-          current = sanitizeVouchers(data.items as VoucherItem[]);
+        const items = data ? data["items"] : undefined;
+        if (Array.isArray(items) && items.length > 0) {
+          current = sanitizeVouchers(items as VoucherItem[]);
         }
       }
     } catch (e) {

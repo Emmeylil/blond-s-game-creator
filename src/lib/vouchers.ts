@@ -121,18 +121,10 @@ export function resetDeviceSpinCount(): void {
 export function sanitizeVouchers(vouchers: VoucherItem[]): VoucherItem[] {
   if (!Array.isArray(vouchers)) return DEFAULT_VOUCHERS;
   return vouchers.map((v) => {
-    let code = v.code || "";
-    if (
-      code === "BLOND1K" ||
-      code === "BLOND2K" ||
-      code === "RJA26" ||
-      code === "SAVE1000" ||
-      code === "SAVE2000" ||
-      code === "SAVE3000"
-    ) {
-      code = "";
-    }
-    return { ...v, code };
+    return {
+      ...v,
+      code: v.code ? String(v.code).trim() : "",
+    };
   });
 }
 
@@ -209,12 +201,6 @@ export function subscribeVouchersCloud(callback: (vouchers: VoucherItem[]) => vo
             saveVouchersLocally(clean);
             callback(clean);
           }
-        } else {
-          // Document does not exist in Cloud Firestore yet: auto-seed with current clean vouchers
-          const current = getVouchers();
-          setDoc(voucherRef, { items: current, updatedAt: new Date().toISOString() }).catch((err) => {
-            console.warn("Auto-seed Firestore notice (check Firestore security rules):", err?.message || err);
-          });
         }
       },
       (error) => {
@@ -280,7 +266,23 @@ export function pickWeightedVoucherIndex(
 }
 
 export async function claimVoucher(id: string): Promise<void> {
-  const current = getVouchers();
+  let current = getVouchers();
+
+  if (db) {
+    try {
+      const voucherRef = doc(db, "settings", "vouchers");
+      const snap = await getDoc(voucherRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.items) && data.items.length > 0) {
+          current = sanitizeVouchers(data.items as VoucherItem[]);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching latest vouchers for claim:", e);
+    }
+  }
+
   const updated = current.map((v) => {
     if (v.id === id && v.win && v.quantity > 0) {
       return { ...v, quantity: v.quantity - 1 };
